@@ -1,4 +1,7 @@
 import { Global, Module } from '@nestjs/common';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from '../database/schema';
 
 export const DRIZZLE_DB = 'DRIZZLE_DB';
 

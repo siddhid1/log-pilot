@@ -8,6 +8,7 @@ import { ui } from "@clerk/ui";
 import DashboardSidebar from "@/components/dashboard/SidebarNav";
 import { SidebarInset } from "@/components/ui/sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import QueryProvider from "./providers/query-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export default function RootLayout({
           suppressHydrationWarning
         >
           <TooltipProvider>
+            <QueryProvider>
             <DashboardSidebar>
               <SidebarInset>
                 <TopBar />
@@ -51,6 +53,7 @@ export default function RootLayout({
                 </div>
               </SidebarInset>
             </DashboardSidebar>
+            </QueryProvider>
           </TooltipProvider>
         </body>
       </html>

@@ -1,15 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select";
+// import { Input } from "@/components/ui/input";
+// import {
+//   Select,
+//   SelectTrigger,
+//   SelectContent,
+//   SelectItem,
+//   SelectValue,
+// } from "@/components/ui/select";
 import {
   Table,
   TableHeader,
@@ -32,6 +32,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getToken, useUser } from "@clerk/nextjs";
+import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "timeago.js";
+import { useStackId } from "recharts/types/cartesian/BarStack";
 
 type KeyRow = {
   name: string;
@@ -41,151 +45,225 @@ type KeyRow = {
   status: "Active" | "Revoked";
 };
 
-const statusColors: Record<KeyRow["status"], string> = {
+const statusColors: any = {
   Active: "#00C2A8",
   Revoked: "#6B7280",
 };
 
 export default function Page() {
-  type KeyRow = {
-    id: string;
-    name: string;
-    scope: "Read Only" | "Write Only" | "Full Access";
-    created: string;
-    lastUsed: string;
-    status: "Active" | "Revoked";
-  };
+  // type KeyRow = {
+  //   id: string;
+  //   name: string;
+  //   scope: "Read Only" | "Write Only" | "Full Access";
+  //   created: string;
+  //   lastUsed: string;
+  //   status: "Active" | "Revoked";
+  // };
 
   // Remove hardcoded seed; load from API instead
-  const [keys, setKeys] = React.useState<KeyRow[]>([]);
-  const [selected, setSelected] = React.useState<KeyRow | null>(null);
-  const [generateOpen, setGenerateOpen] = React.useState(false);
+  // const [keys, setKeys] = React.useState<KeyRow[]>([]);
+  const [selected, setSelected] = React.useState<any>(null);
+  // const [generateOpen, setGenerateOpen] = React.useState(false);
   const [revealOpen, setRevealOpen] = React.useState(false);
   const [generatedSecret, setGeneratedSecret] = React.useState<string | null>(
     null,
   );
-  const [newName, setNewName] = React.useState("");
-  const [newScope, setNewScope] =
-    React.useState<KeyRow["scope"]>("Full Access");
-  const [newExpiry, setNewExpiry] = React.useState<
-    "Never" | "30 Days" | "90 Days"
-  >("Never");
+  // const [newName, setNewName] = React.useState("");
+  // const [newScope, setNewScope] =
+  //   React.useState<KeyRow["scope"]>("Full Access");
+  // const [newExpiry, setNewExpiry] = React.useState<
+  //   "Never" | "30 Days" | "90 Days"
+  // >("Never");
 
   // New: creation loading state
   const [isCreating, setIsCreating] = React.useState(false);
   // New: loading state for fetching saved API keys
-  const [isLoadingKeys, setIsLoadingKeys] = React.useState(true);
+  // const [isLoadingKeys, setIsLoadingKeys] = React.useState(true);
   // New: copied feedback state
   const [copied, setCopied] = React.useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
+
+  const { isLoaded, isSignedIn } = useUser();
+  const queryClient = useQueryClient();
+
+  const { data: apiKeysData, isLoading } = useQuery({
+    queryKey: ["api-keys"],
+    queryFn: async () => {
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URI}/api-keys`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      const res = await response.json();
+      return res;
+    },
+    enabled: isLoaded && isSignedIn,
+  });
 
   // Simple client-side cache for keys to avoid repeated fetching on reloads
-  const CACHE_STORAGE_KEY = "oml_api_keys_cache";
-  const CACHE_TTL_MS = 10 * 60_000; // 10 minutes TTL; increase to cut fetches further
-  const inFlightRef = React.useRef<Promise<KeyRow[]> | null>(null);
+  // const CACHE_STORAGE_KEY = "oml_api_keys_cache";
+  // const CACHE_TTL_MS = 10 * 60_000; // 10 minutes TTL; increase to cut fetches further
+  // const inFlightRef = React.useRef<Promise<KeyRow[]> | null>(null);
 
-  const refreshKeys = async (opts?: { force?: boolean }) => {
-    setIsLoadingKeys(true);
-    try {
-      const now = Date.now();
+  // const refreshKeys = async (opts?: { force?: boolean }) => {
+  //   setIsLoadingKeys(true);
+  //   try {
+  //     const now = Date.now();
 
-      // Try cache first unless forced
-      let cached: { data: KeyRow[]; timestamp: number } | null = null;
-      try {
-        const raw = localStorage.getItem(CACHE_STORAGE_KEY);
-        if (raw) cached = JSON.parse(raw);
-      } catch {}
-      const isFresh = cached && now - cached.timestamp < CACHE_TTL_MS;
+  //     // Try cache first unless forced
+  //     let cached: { data: KeyRow[]; timestamp: number } | null = null;
+  //     try {
+  //       const raw = localStorage.getItem(CACHE_STORAGE_KEY);
+  //       if (raw) cached = JSON.parse(raw);
+  //     } catch {}
+  //     const isFresh = cached && now - cached.timestamp < CACHE_TTL_MS;
 
-      if (!opts?.force && isFresh) {
-        setKeys(cached!.data);
-        return;
-      }
+  //     if (!opts?.force && isFresh) {
+  //       setKeys(cached!.data);
+  //       return;
+  //     }
 
-      // Dedupe concurrent fetches
-      if (!inFlightRef.current) {
-        inFlightRef.current = fetch("/api/api-keys", {
-          method: "GET",
-          cache: "no-store",
-        })
-          .then(async (res) => {
-            if (!res.ok) throw new Error("Failed to fetch API keys");
-            return (await res.json()) as KeyRow[];
-          })
-          .finally(() => {
-            inFlightRef.current = null;
-          });
-      }
+  //     // Dedupe concurrent fetches
+  //     if (!inFlightRef.current) {
+  //       inFlightRef.current = fetch("/api/api-keys", {
+  //         method: "GET",
+  //         cache: "no-store",
+  //       })
+  //         .then(async (res) => {
+  //           if (!res.ok) throw new Error("Failed to fetch API keys");
+  //           return (await res.json()) as KeyRow[];
+  //         })
+  //         .finally(() => {
+  //           inFlightRef.current = null;
+  //         });
+  //     }
 
-      const data = await inFlightRef.current;
-      setKeys(data);
-      try {
-        localStorage.setItem(
-          CACHE_STORAGE_KEY,
-          JSON.stringify({ data, timestamp: now }),
-        );
-      } catch {}
-    } finally {
-      setIsLoadingKeys(false);
-    }
-  };
+  //     const data = await inFlightRef.current;
+  //     setKeys(data);
+  //     try {
+  //       localStorage.setItem(
+  //         CACHE_STORAGE_KEY,
+  //         JSON.stringify({ data, timestamp: now }),
+  //       );
+  //     } catch {}
+  //   } finally {
+  //     setIsLoadingKeys(false);
+  //   }
+  // };
 
-  React.useEffect(() => {
-    // Load keys on mount: check cache first, fetch from API if cache is empty or stale
-    refreshKeys();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // React.useEffect(() => {
+  //   // Load keys on mount: check cache first, fetch from API if cache is empty or stale
+  //   refreshKeys();
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
+
+  const apiKeys: any = apiKeysData || [];
 
   const createKey = async () => {
     setIsCreating(true);
     try {
-      const res = await fetch("/api/api-keys/generate-secret-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName || "New Key",
-          scope: newScope,
-          expiresAt: newExpiry,
-        }),
-      });
+      const token = await getToken();
+      // const res = await fetch("/api/api-keys/generate-secret-key", {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URI}/api-keys`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorizatoin: `Bearer ${token}`,
+          },
+          // body: JSON.stringify({
+          //   // name: newName || "New Key",
+          //   // scope: newScope,
+          //   // expiresAt: newExpiry,
+          // }),
+        },
+      );
       if (!res.ok) return;
       const { key } = await res.json();
       setGeneratedSecret(key);
       setRevealOpen(true);
 
+      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+
       // Force refresh to ensure cache reflects the newly created key
-      await refreshKeys({ force: true });
-      setGenerateOpen(false);
-      setNewName("");
-      setNewScope("Read Only");
-      setNewExpiry("Never");
+      // await refreshKeys({ force: true });
+      // setGenerateOpen(false);
+      // setNewName("");
+      // setNewScope("Read Only");
+      // setNewExpiry("Never");
     } finally {
       setIsCreating(false);
     }
   };
 
   const revokeSelected = async () => {
-    if (!selected) return;
+    if (!selected.Id) return;
+    // if (!selected.id) return;
+    //BREAKING_HERE
+    // setIsCreating(true);
+    setIsRevoking(true);
+    console.log(selected);
 
-    // Prevent revoking the system-generated "Default" key
-    if (selected.name === "Default") {
-      toast.error("Cannot delete the system-generated Default API key");
-      return;
+    try {
+      const token = await getToken();
+      // const res = await fetch("/api/api-keys/generate-secret-key", {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URI}/api-keys/${selected.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorizatoin: `Bearer ${token}`,
+          },
+          // body: JSON.stringify({
+          //   // name: newName || "New Key",
+          //   // scope: newScope,
+          //   // expiresAt: newExpiry,
+          // }),
+        },
+      );
+      if (!res.ok) return;
+
+      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+      setSelected(null)
+
+      // Force refresh to ensure cache reflects the newly created key
+      // await refreshKeys({ force: true });
+      // setGenerateOpen(false);
+      // setNewName("");
+      // setNewScope("Read Only");
+      // setNewExpiry("Never");
+    } finally {
+      setIsRevoking(false);
+      // setIsCreating(false);
     }
 
-    // Prevent revoking the last active key
-    if (activeCount <= 1 && selected.status === "Active") {
-      toast.error("Cannot revoke the only active API key");
-      return;
-    }
+    // // Prevent revoking the system-generated "Default" key
+    // if (selected.name === "Default") {
+    //   toast.error("Cannot delete the system-generated Default API key");
+    //   return;
+    // }
 
-    await fetch("/api/api-keys/revoke", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: selected.id }),
-    });
-    // Force refresh to reflect revocation immediately and update cache
-    await refreshKeys({ force: true });
-    setSelected((sel) => (sel ? { ...sel, status: "Revoked" } : sel));
+    // // Prevent revoking the last active key
+    // if (activeCount <= 1 && selected.status === "Active") {
+    //   toast.error("Cannot revoke the only active API key");
+    //   return;
+    // }
+
+    // await fetch("/api/api-keys/revoke", {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify({ id: selected.id }),
+    // });
+    // queryClient.invalidateQueries({queryKey:["api-keys"]})
+    // // Force refresh to reflect revocation immediately and update cache
+    // // await refreshKeys({ force: true });
+    // setSelected((sel) => (sel ? { ...sel, status: "Revoked" } : sel));
   };
 
   const copyGeneratedSecret = () => {
@@ -196,20 +274,20 @@ export default function Page() {
   };
 
   const activeCount = React.useMemo(
-    () => keys.filter((k) => k.status === "Active").length,
-    [keys],
+    () => apiKeys.filter((k: any) => k.revoked_at === null).length,
+    [apiKeys],
   );
 
   const limitReached = activeCount >= 5;
 
   const revokedCount = React.useMemo(
-    () => keys.filter((k) => k.status === "Revoked").length,
-    [keys],
+    () => apiKeys.filter((k: any) => k.revoked_at !== null).length,
+    [apiKeys],
   );
   const lastGeneratedAgo = React.useMemo(() => {
-    const timestamps = keys
-      .map((k) => Date.parse(k.created))
-      .filter((t) => !Number.isNaN(t));
+    const timestamps = apiKeys
+      .map((k: any) => Date.parse(k.created_at))
+      .filter((t: any) => !Number.isNaN(t));
     if (timestamps.length === 0) return "—";
     const latest = Math.max(...timestamps);
     const diffMs = Date.now() - latest;
@@ -221,7 +299,11 @@ export default function Page() {
     if (hours >= 1) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
     if (mins >= 1) return `${mins} min${mins > 1 ? "s" : ""} ago`;
     return "just now";
-  }, [keys]);
+  }, [apiKeys]);
+
+  // if (isLoading) {
+  //   return null;
+  // }
 
   return (
     <div className="space-y-4">
@@ -239,11 +321,12 @@ export default function Page() {
             <TooltipTrigger asChild>
               <Button
                 className="rounded-md"
-                onClick={() => setGenerateOpen(true)}
-                disabled={limitReached}
+                // onClick={() => setGenerateOpen(true)}
+                onClick={() => createKey()}
+                disabled={isCreating || limitReached}
               >
                 <Plus className="h-4 w-4" />
-                Generate New Key
+                {isCreating ? "Generating..." : "Generate New Key"}
               </Button>
             </TooltipTrigger>
             <TooltipContent sideOffset={6}>
@@ -282,17 +365,17 @@ export default function Page() {
 
       {/* Keys Table */}
       <div className="rounded-md border">
-        {keys.length > 0 && (
+        {apiKeys?.length > 0 && (
           <div className="flex items-center justify-between px-3 py-2">
             <h3 className="text-sm font-medium">Your API Keys</h3>
             <span className="text-xs text-muted-foreground">
-              {keys.length} keys
+              {apiKeys?.length} keys
             </span>
           </div>
         )}
 
-        {keys.length === 0 ? (
-          isLoadingKeys ? (
+        {apiKeys?.length === 0 ? (
+          isLoading ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Loading saved API keys…
@@ -307,7 +390,7 @@ export default function Page() {
         ) : (
           <div className="relative">
             {/* Overlay spinner while refreshing keys list */}
-            {isLoadingKeys && (
+            {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -319,8 +402,8 @@ export default function Page() {
             <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Scope</TableHead>
+                  <TableHead>prefix</TableHead>
+                  {/* <TableHead>Scope</TableHead> */}
                   <TableHead>Created</TableHead>
                   <TableHead>Last Used</TableHead>
                   <TableHead>Status</TableHead>
@@ -328,27 +411,33 @@ export default function Page() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {keys.map((k, idx) => (
+                {apiKeys?.map((k: any, idx: number) => (
                   <TableRow
-                    key={`${k.name}-${idx}`}
+                    key={`${k.prefix}`}
                     className="cursor-pointer transition-colors hover:bg-white/5"
                     onClick={() => setSelected(k)}
                   >
-                    <TableCell className="text-white/90">{k.name}</TableCell>
-                    <TableCell className="text-white/80">{k.scope}</TableCell>
-                    <TableCell className="text-white/70">{k.created}</TableCell>
+                    <TableCell className="text-white/90">{k.prefix}</TableCell>
+                    <TableCell className="text-white/70 capitalize">
+                      {format(k.created_at)}
+                    </TableCell>
                     <TableCell className="text-white/70">
-                      {k.lastUsed}
+                      {k.last_used_at || "No usage yet"}
                     </TableCell>
                     <TableCell
                       className="font-medium"
-                      style={{ color: statusColors[k.status] }}
+                      style={{
+                        color:
+                          statusColors[
+                            k.revoked_at == null ? "Active" : "Revoked"
+                          ],
+                      }}
                     >
-                      {k.status}
+                      {k.revoked_at == null ? "Active" : "Revoked"}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        {k.status !== "Revoked" && (
+                        {k.revoked_at === null && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="inline-flex">
@@ -414,7 +503,7 @@ export default function Page() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium">API Key Details</h3>
               <div className="flex gap-2">
-                {selected.status !== "Revoked" && (
+                {selected.revoked_at === null && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex">
@@ -423,50 +512,59 @@ export default function Page() {
                           size="sm"
                           className="rounded-md"
                           disabled={
-                            (activeCount <= 1 &&
-                              selected.status === "Active") ||
-                            selected.name === "Default"
+                            isRevoking &&
+                            activeCount <= 1 &&
+                            selected.status === "Active"
                           }
                           onClick={revokeSelected}
                         >
                           <Trash2 className="h-4 w-4" />
-                          Revoke
+                          {isRevoking ? "Revoking..." : "Revoke"}
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent sideOffset={6}>
-                      {selected.name === "Default"
-                        ? "Cannot delete the system-generated Default API key"
-                        : activeCount <= 1 && selected.status === "Active"
-                          ? "Cannot revoke the only active API key"
-                          : "Revoke this API key"}
-                    </TooltipContent>
+                    {/* <TooltipContent sideOffset={6}>
+                      {activeCount <= 1
+                        ? selected.status === "Active"
+                        : "Cannot revoke the only active API key"}
+                    </TooltipContent> */}
                   </Tooltip>
                 )}
               </div>
             </div>
 
             <div className="mt-3 space-y-3 text-sm">
-              <div className="flex justify-between">
+              {/* <div className="flex justify-between">
                 <span className="text-muted-foreground">Name</span>
                 <span>{selected.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Scope</span>
                 <span>{selected.scope}</span>
-              </div>
+              </div> */}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Created</span>
-                <span>{selected.created}</span>
+                <span>{format(selected.created_at)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Last Used</span>
-                <span>{selected.lastUsed}</span>
+                <span>
+                  {selected.last_used_at !== null
+                    ? format(selected.last_used_at)
+                    : "No usage yet"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Status</span>
-                <span style={{ color: statusColors[selected.status] }}>
-                  {selected.status}
+                <span
+                  style={{
+                    color:
+                      statusColors[
+                        selected.revoked_at === null ? "Active" : "Revoked"
+                      ],
+                  }}
+                >
+                  {selected.revoked_at === null ? "Active" : "Revoked"}
                 </span>
               </div>
             </div>
@@ -475,7 +573,7 @@ export default function Page() {
       )}
 
       {/* Generate New API Key Modal */}
-      <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
+      {/* <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
         <DialogContent className="sm:max-w-120">
           <DialogHeader>
             <DialogTitle>Generate New API Key</DialogTitle>
@@ -486,7 +584,7 @@ export default function Page() {
           </DialogHeader>
 
           {/* Limit message */}
-          {limitReached && (
+      {/* {limitReached && (
             <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
               You have reached the limit of 5 active keys. Revoke one to create
               a new key.
@@ -501,8 +599,8 @@ export default function Page() {
                 className="rounded-md"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
+              /> */}
+      {/* </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Scope</div>
@@ -527,8 +625,8 @@ export default function Page() {
                   onValueChange={(v) => setNewExpiry(v as typeof newExpiry)}
                 >
                   <SelectTrigger className="w-full rounded-md">
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
+                    <SelectValue placeholder="Select" /> */}
+      {/* </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Never">Never</SelectItem>
                     <SelectItem value="30 Days">30 Days</SelectItem>
@@ -564,7 +662,7 @@ export default function Page() {
             </div>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
 
       {/* One-time Secret Reveal Dialog */}
       <Dialog

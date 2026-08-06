@@ -77,7 +77,7 @@ export class APIKeyService {
     await this.db
       .update(api_key)
       .set({ revoked_at: new Date() })
-      .where(and(eq(api_key.user_id, userId)));
+      .where(and(eq(api_key.user_id, userId)),eq(api_key.id, keyId));
     await this.redis.del('oml:api_key${VERSION}:${keyId}');
     localCache.delete(`${VERSION}:${keyId}`);
   }
@@ -104,7 +104,7 @@ export class APIKeyService {
       })
       .where(and(eq(api_key.id, keyId), eq(api_key.user_id, userId)));
 
-    await this.redis.del(`vmx:api_key${VERSION}:${keyId}`);
+    await this.redis.del(`oml:api_key${VERSION}:${keyId}`);
     localCache.delete(`${VERSION}:${keyId}`);
 
     return { key: plaintextKey };

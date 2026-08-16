@@ -50,7 +50,7 @@ export class APIKeyService {
     const prefix = plaintextKey.substring(0, 18) + '...';
 
     await this.db.insert(api_key).values({
-      key_id: keyId,
+      id: keyId,
       user_id: userId,
       value: hash,
       prefix: prefix,
@@ -77,8 +77,8 @@ export class APIKeyService {
     await this.db
       .update(api_key)
       .set({ revoked_at: new Date() })
-      .where(and(eq(api_key.user_id, userId)),eq(api_key.id, keyId));
-    await this.redis.del('oml:api_key${VERSION}:${keyId}');
+      .where(and(eq(api_key.user_id, userId), eq(api_key.id, keyId)));
+    await this.redis.del(`oml:api_key:${VERSION}:${keyId}`);
     localCache.delete(`${VERSION}:${keyId}`);
   }
 

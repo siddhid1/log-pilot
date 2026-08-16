@@ -33,9 +33,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getToken, useUser } from "@clerk/nextjs";
-import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "timeago.js";
-import { useStackId } from "recharts/types/cartesian/BarStack";
 
 type KeyRow = {
   name: string;
@@ -161,12 +160,14 @@ export default function Page() {
   //   // eslint-disable-next-line react-hooks/exhaustive-deps
   // }, []);
 
-  const apiKeys: any = apiKeysData || [];
+  // const apiKeys: any = apiKeysData || [];
+  //
+  const apiKeys: any = Array.isArray(apiKeysData) ? apiKeysData : [];
 
   const createKey = async () => {
     setIsCreating(true);
     try {
-      const token = await getToken();
+      const token = await getToken(); //Token from Clerk
       // const res = await fetch("/api/api-keys/generate-secret-key", {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_SERVER_URI}/api-keys`,
@@ -174,7 +175,7 @@ export default function Page() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorizatoin: `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           // body: JSON.stringify({
           //   // name: newName || "New Key",
@@ -183,7 +184,13 @@ export default function Page() {
           // }),
         },
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(
+          err?.message || `Failed to generate key (${res.status})`,
+        );
+        return;
+      }
       const { key } = await res.json();
       setGeneratedSecret(key);
       setRevealOpen(true);
@@ -196,41 +203,39 @@ export default function Page() {
       // setNewName("");
       // setNewScope("Read Only");
       // setNewExpiry("Never");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to generate key");
     } finally {
       setIsCreating(false);
     }
   };
 
-  const revokeSelected = async () => {
-    if (!selected.Id) return;
-    // if (!selected.id) return;
-    //BREAKING_HERE
-    // setIsCreating(true);
+  const revokeSelected = async (key?: any) => {
+    const target = key ?? selected;
+    if (!target?.id) return;
     setIsRevoking(true);
-    console.log(selected);
 
     try {
       const token = await getToken();
-      // const res = await fetch("/api/api-keys/generate-secret-key", {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_SERVER_URI}/api-keys/${selected.id}`,
+        `${process.env.NEXT_PUBLIC_SERVER_URI}/api-keys/${target.id}`,
         {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            Authorizatoin: `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
-          // body: JSON.stringify({
-          //   // name: newName || "New Key",
-          //   // scope: newScope,
-          //   // expiresAt: newExpiry,
-          // }),
         },
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.message || `Failed to revoke key (${res.status})`);
+        return;
+      }
 
+      toast.success("API key revoked");
       queryClient.invalidateQueries({ queryKey: ["api-keys"] });
-      setSelected(null)
+      setSelected(null);
 
       // Force refresh to ensure cache reflects the newly created key
       // await refreshKeys({ force: true });
@@ -238,6 +243,8 @@ export default function Page() {
       // setNewName("");
       // setNewScope("Read Only");
       // setNewExpiry("Never");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to revoke key");
     } finally {
       setIsRevoking(false);
       // setIsCreating(false);
@@ -446,27 +453,21 @@ export default function Page() {
                                   size="sm"
                                   className="rounded-lg"
                                   disabled={
-                                    activeCount <= 1 && k.status === "Active"
+                                    activeCount <= 1 &&
+                                    k.revoked_at === null
                                   }
                                   onClick={async (e) => {
                                     e.stopPropagation();
-                                    if (k.name === "Default") {
-                                      toast.error(
-                                        "Cannot delete the system-generated Default API key",
-                                      );
-                                      return;
-                                    }
                                     if (
                                       activeCount <= 1 &&
-                                      k.status === "Active"
+                                      k.revoked_at === null
                                     ) {
                                       toast.error(
                                         "Cannot revoke the only active API key",
                                       );
                                       return;
                                     }
-                                    setSelected(k);
-                                    await revokeSelected();
+                                    await revokeSelected(k);
                                   }}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -512,9 +513,8 @@ export default function Page() {
                           size="sm"
                           className="rounded-md"
                           disabled={
-                            isRevoking &&
-                            activeCount <= 1 &&
-                            selected.status === "Active"
+                            isRevoking ||
+                            (activeCount <= 1 && selected.revoked_at === null)
                           }
                           onClick={revokeSelected}
                         >

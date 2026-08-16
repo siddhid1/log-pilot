@@ -1,0 +1,43 @@
+{
+  "name": "@logpilot/next",
+  "version": "1.0.0",
+  "description": "A light weight package for working with LogPilot. Set up your logging pipeline with ease.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepare": "npm run clean && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/siddhid1/log-pilot.git"
+  },
+  "keywords": [
+    "logs",
+    "log-pilot-stack",
+    "structured-logging",
+    "monitoring",
+    "observability",
+    "audit",
+    "security"
+  ],
+  "author": "LogPilot Stack",
+  "licenses": "ISC",
+  "bugs": {
+    "url": "https://github.com/Log-Pilot-Stack/logpilot-next/issues"
+  },
+  "homepage": "https://logpilot.com/docs/nextjs",
+  "devDependencies": {
+    "@types/node": "26.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "react": "^19.2.7"
+  }
+}
